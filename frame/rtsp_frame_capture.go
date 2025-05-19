@@ -12,6 +12,8 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
 	"log"
 	"os"
 	"path/filepath"
@@ -345,32 +347,23 @@ func saveFrameAsJPEG(frame *C.AVFrame, width, height int, filename string) error
 
 	return nil
 }
+
 // 将AVFrame转换为Go的image.Image对象
 func avFrameToImage(frame *C.AVFrame, width, height int) (image.Image, error) {
-	// 创建RGBA图像对象
-	img := image.NewRGBA(image.Rect(0, 0, int(width), int(height)))
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	dataPtr := unsafe.Pointer(frame.data[0])
 
-	// 获取AVFrame中的RGB数据
-	// 注意：AVFrame的data[0]是RGB数据，linesize[0]是每行的字节数
-	// 这里假设AVFrame的格式是AV_PIX_FMT_RGB24
+	for y := 0; y < height; y++ {
+		// 计算行偏移
+		row := (*[1 << 30]C.uint8_t)(unsafe.Pointer(uintptr(dataPtr) + uintptr(y)*uintptr(frame.linesize[0])))
 
-	// 遍历每一行
-	for y := 0; y < int(height); y++ {
-		// 计算当前行的指针位置
-		linePtr := uintptr(unsafe.Pointer(&frame.data[0][0])) + uintptr(y)*uintptr(frame.linesize[0])
-
-		// 遍历每一列的像素
-		for x := 0; x < int(width); x++ {
-			// 读取RGB值 (每个像素3个字节)
-			offset := uintptr(x * 3)
-			r := *(*uint8)(unsafe.Pointer(linePtr + offset))
-			g := *(*uint8)(unsafe.Pointer(linePtr + offset + 1))
-			b := *(*uint8)(unsafe.Pointer(linePtr + offset + 2))
-
-			// 设置Go image中的像素值
-			img.Set(x, y, color.RGBA{r, g, b, 255})
+		for x := 0; x < width; x++ {
+			offset := x * 3
+			r := row[offset]
+			g := row[offset+1]
+			b := row[offset+2]
+			img.Set(x, y, color.RGBA{uint8(r), uint8(g), uint8(b), 255})
 		}
 	}
-
 	return img, nil
 }
