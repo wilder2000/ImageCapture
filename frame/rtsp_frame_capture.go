@@ -10,10 +10,12 @@ package frame
 */
 import "C"
 import (
+	"cv/frame"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"log"
 	"os"
 	"path/filepath"
@@ -36,7 +38,12 @@ const (
 // 	return filepath.Join(dir, "go-rtsp-frame-extractor")
 // }
 
-func Start(rtspUrl string) error {
+func StartBackground(rtspUrl string, frameSep int) {
+	go Start(rtspUrl, frameSep)
+}
+
+func Start(rtspUrl string, frameSep int) error {
+
 	// 初始化输出目录
 	outputDir := filepath.Join(AppDir(), "frames_out")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
@@ -56,14 +63,17 @@ func Start(rtspUrl string) error {
 	// 打开RTSP流
 	cUrl := C.CString(rtspUrl)
 	defer C.free(unsafe.Pointer(cUrl))
+
 	if ret := C.avformat_open_input(&pFormatCtx, cUrl, nil, nil); ret != 0 {
-		return fmt.Errorf("打开RTSP流失败: %d", ret)
+		msg := GetFFmpegError(ret)
+		return fmt.Errorf("打开RTSP流失败: %s", msg)
 	}
 	defer C.avformat_close_input(&pFormatCtx)
 
 	// 查找流信息
 	if ret := C.avformat_find_stream_info(pFormatCtx, nil); ret < 0 {
-		return fmt.Errorf("获取流信息失败: %d", ret)
+		msg := GetFFmpegError(ret)
+		return fmt.Errorf("获取流信息失败: %s", msg)
 	}
 
 	// 查找视频流
@@ -96,11 +106,13 @@ func Start(rtspUrl string) error {
 	defer C.avcodec_free_context(&codecCtx)
 
 	if ret := C.avcodec_parameters_to_context(codecCtx, videoStream.codecpar); ret < 0 {
-		return fmt.Errorf("复制编解码参数失败: %d", ret)
+		msg := GetFFmpegError(ret)
+		return fmt.Errorf("复制编解码参数失败: %s", msg)
 	}
 
 	if ret := C.avcodec_open2(codecCtx, codec, nil); ret < 0 {
-		return fmt.Errorf("打开解码器失败: %d", ret)
+		msg := GetFFmpegError(ret)
+		return fmt.Errorf("打开解码器失败: %s", msg)
 	}
 
 	// 初始化帧
@@ -123,7 +135,8 @@ func Start(rtspUrl string) error {
 
 	// 分配帧缓冲区
 	if ret := C.av_frame_get_buffer(pFrameRGB, 32); ret < 0 {
-		return fmt.Errorf("分配帧缓冲区失败: %d", ret)
+		msg := GetFFmpegError(ret)
+		return fmt.Errorf("分配帧缓冲区失败: %s", msg)
 	}
 
 	// 创建转换上下文
@@ -146,12 +159,20 @@ func Start(rtspUrl string) error {
 	defer C.av_packet_free(&pPacket)
 
 	frameCount := 0
+	framePadding := 0
 	for C.av_read_frame(pFormatCtx, pPacket) >= 0 {
 		if int(pPacket.stream_index) != videoStreamIndex {
 			C.av_packet_unref(pPacket)
 			continue
 		}
-
+		framePadding++
+		if framePadding > frameSep {
+			framePadding = 0
+		}
+		if framePadding < frameSep {
+			continue
+		}
+		//处理帧间隔
 		if ret := C.avcodec_send_packet(codecCtx, pPacket); ret < 0 {
 			C.av_packet_unref(pPacket)
 			continue
@@ -162,7 +183,7 @@ func Start(rtspUrl string) error {
 			if ret == CAVERROR_EAGAIN || ret == CAVERROR_EOF {
 				break
 			} else if ret < 0 {
-				return fmt.Errorf("解码错误: %d", ret)
+				return fmt.Errorf("解码错误: %s", GetFFmpegError(ret))
 			}
 
 			// 转换像素格式
@@ -180,6 +201,7 @@ func Start(rtspUrl string) error {
 			if err := saveFrameAsJPEG(pFrameRGB, int(codecCtx.width), int(codecCtx.height), filename); err != nil {
 				return fmt.Errorf("保存帧失败: %w", err)
 			}
+
 			frameCount++
 		}
 		C.av_packet_unref(pPacket)
@@ -366,4 +388,42 @@ func avFrameToImage(frame *C.AVFrame, width, height int) (image.Image, error) {
 		}
 	}
 	return img, nil
+}
+
+// SaveImageAsJPEG 将image.Image保存为JPEG文件
+// 参数：
+//
+//	img: 要保存的图像对象
+//	filename: 保存的文件路径
+//	quality: JPEG质量(1-100)
+//
+// 返回：
+//
+//	error: 保存过程中出现的错误
+func SaveImageAsJPEG(img image.Image, filename string, quality int) error {
+	// 创建输出文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 设置JPEG编码选项
+	options := jpeg.Options{
+		Quality: quality, // 默认质量75，范围1-100
+	}
+
+	// 编码并保存图像
+	return jpeg.Encode(file, img, &options)
+}
+
+// GetFFmpegError 将FFmpeg错误码转换为可读字符串
+func GetFFmpegError(code int) string {
+	errBuf := make([]byte, 256)
+	cErrBuf := (*C.char)(unsafe.Pointer(&errBuf[0]))
+
+	if C.av_strerror(C.int(code), cErrBuf, C.size_t(len(errBuf))) == 0 {
+		return C.GoString(cErrBuf)
+	}
+	return "未知FFmpeg错误"
 }

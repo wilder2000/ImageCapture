@@ -1,0 +1,4 @@
+-I/usr/local/include
+-I${GOPATH}/src
+-std=c11
+--target=x86_64-linux-gnu

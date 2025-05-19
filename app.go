@@ -4,11 +4,13 @@ import (
 	"cv/frame"
 	"flag"
 	"fmt"
+	"github.com/wilder2000/GOSimple/glog"
 	// "github.com/disintegration/imaging"
 )
 
 func main() {
 
+	glog.Logger.InfoF("")
 	rtspUrl := flag.String("rtsp", "url", "rtsp url")
 
 	flag.Parse()

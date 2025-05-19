@@ -4,5 +4,12 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		 "CGO_ENABLED": "1",
+        "env": {
+            "PKG_CONFIG_PATH": "C:/wh/ffmpeg-master/lib/pkgconfig",
+            "PATH": "C:/wh/ffmpeg-master/bin;%PATH%;c:/Program Files/Go/bin/"
+        }
+    },
 }
