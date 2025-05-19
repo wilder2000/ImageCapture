@@ -10,7 +10,6 @@ package frame
 */
 import "C"
 import (
-	"cv/frame"
 	"errors"
 	"fmt"
 	"image"

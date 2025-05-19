@@ -10,7 +10,7 @@ import (
 
 func main() {
 
-	glog.Logger.InfoF("")
+	glog.Logger.InfoF("=================")
 	rtspUrl := flag.String("rtsp", "url", "rtsp url")
 
 	flag.Parse()
