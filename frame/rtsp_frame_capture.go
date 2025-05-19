@@ -417,7 +417,7 @@ func SaveImageAsJPEG(img image.Image, filename string, quality int) error {
 }
 
 // GetFFmpegError 将FFmpeg错误码转换为可读字符串
-func GetFFmpegError(code int) string {
+func GetFFmpegError(code C.int) string {
 	errBuf := make([]byte, 256)
 	cErrBuf := (*C.char)(unsafe.Pointer(&errBuf[0]))
 

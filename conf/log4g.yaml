@@ -1,0 +1,9 @@
+file: application.log
+dir: ./
+MaxSize: 10
+MaxAge: 30
+MaxBackups: 7
+Compress: true
+LogLevel: info
+Console: true
+

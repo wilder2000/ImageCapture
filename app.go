@@ -18,7 +18,7 @@ func main() {
 
 	// 初始化FFmpeg
 	fmt.Println("start to test.")
-	if err := frame.Start(*rtspUrl); err != nil {
+	if err := frame.Start(*rtspUrl,10); err != nil {
 		fmt.Printf("error:%s", err.Error())
 	}
 	// reader := frame.ExampleReadFrameAsJpeg(*rtspUrl, 5)
